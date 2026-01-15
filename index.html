@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Metrónomo Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bg-color: #000000;
+            --container-bg: #0a0a0a;
+            --text-color: #ffffff;
+            --tab-bg: #111;
+            --tab-active: #222;
+            --dial-bg: radial-gradient(circle, #1a1a1a 0%, #050505 100%);
+            --center-btn-bg: #111;
+            --card-bg: #0d0d0d;
+            --border-color: #1a1a1a;
+            --input-bg: #111;
+            --label-color: #444;
+            --shadow-color: rgba(0, 0, 0, 1);
+        }
+
+        body.light-mode {
+            --bg-color: #f3f4f6;
+            --container-bg: #ffffff;
+            --text-color: #111827;
+            --tab-bg: #e5e7eb;
+            --tab-active: #ffffff;
+            --dial-bg: radial-gradient(circle, #f9fafb 0%, #d1d5db 100%);
+            --center-btn-bg: #ffffff;
+            --card-bg: #f9fafb;
+            --border-color: #e5e7eb;
+            --input-bg: #f3f4f6;
+            --label-color: #9ca3af;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom) 20px;
+            user-select: none;
+            touch-action: manipulation;
+            transition: background-color 0.3s ease;
+        }
+
+        .metronome-container {
+            background-color: var(--container-bg);
+            padding: 1.5rem;
+            border-radius: 3rem;
+            box-shadow: 0 0 60px var(--shadow-color);
+            text-align: center;
+            width: 100%;
+            max-width: 440px;
+            border: 1px solid var(--border-color);
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            background: var(--tab-bg);
+            padding: 5px;
+            border-radius: 1.5rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--border-color);
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            border-radius: 1.2rem;
+            font-size: 0.8rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: var(--label-color);
+        }
+        .tab-btn.active {
+            background: var(--tab-active);
+            color: #3b82f6;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        /* Dial UI */
+        .dial-outer {
+            position: relative;
+            width: 260px;
+            height: 260px;
+            background: var(--dial-bg);
+            border-radius: 50%;
+            margin: 1.5rem auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 10px 10px 20px var(--shadow-color), -5px -5px 15px var(--border-color);
+            cursor: grab;
+            touch-action: none;
+            border: 2px solid var(--border-color);
+        }
+        .dial-outer:active { cursor: grabbing; }
+        .dial-knob {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #3b82f6;
+            border-radius: 50%;
+            top: 15px;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+            transform-origin: center 115px;
+            pointer-events: none;
+        }
+        .center-button {
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            background: var(--center-btn-bg);
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            box-shadow: 0 4px 10px var(--shadow-color);
+        }
+        .center-button.playing { border-color: #3b82f6; }
+        .bpm-display { font-size: 3.5rem; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; color: var(--text-color); }
+
+        /* Visual Beats */
+        .visual-beat-container {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin: 1.5rem 0;
+            height: 28px;
+            flex-wrap: wrap;
+        }
+        .beat-square {
+            width: 24px;
+            height: 24px;
+            background: #1e3a8a;
+            border-radius: 5px;
+            transition: all 0.05s ease-out;
+            border: 1px solid #172554;
+            opacity: 0.4;
+        }
+        .beat-square.active {
+            background: #60a5fa;
+            transform: scale(1.2);
+            box-shadow: 0 0 20px #3b82f6;
+            border-color: #ffffff;
+            opacity: 1;
+        }
+
+        /* Content Sections */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .sequence-list, .songs-list {
+            max-height: 160px;
+            overflow-y: auto;
+            margin-bottom: 1rem;
+            padding-right: 5px;
+        }
+        .sequence-list::-webkit-scrollbar, .songs-list::-webkit-scrollbar { width: 3px; }
+        .sequence-list::-webkit-scrollbar-thumb, .songs-list::-webkit-scrollbar-thumb { background: var(--border-color); }
+
+        .item-card {
+            background: var(--card-bg);
+            padding: 0.7rem 1rem;
+            border-radius: 1rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid var(--border-color);
+        }
+        .item-card.active { border-color: #3b82f6; background: var(--tab-bg); }
+
+        .input-group {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr auto;
+            gap: 0.5rem;
+            margin-top: 10px;
+        }
+        select, input {
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 0.5rem;
+            border-radius: 0.7rem;
+            font-size: 0.8rem;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        #save-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--container-bg);
+            border: 1px solid var(--border-color);
+            padding: 1.5rem;
+            border-radius: 1.5rem;
+            z-index: 100;
+            width: 80%;
+            display: none;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        }
+
+        .btn-blue { background: #2563eb; color: white; padding: 12px 15px; border-radius: 0.7rem; font-weight: bold; font-size: 0.8rem; }
+        .btn-outline { border: 1px solid var(--border-color); padding: 12px 15px; border-radius: 0.7rem; font-size: 0.8rem; color: var(--text-color); }
+
+        .label-xs { color: var(--label-color); font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 2px; text-align: left; }
+
+        /* Theme Toggle Button */
+        .theme-toggle {
+            position: absolute;
+            top: 1rem;
+            right: 1.5rem;
+            background: var(--tab-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 6px;
+            border-radius: 50%;
+            cursor: pointer;
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="metronome-container">
+        <!-- Botón de Modo Claro/Oscuro -->
+        <button id="theme-btn" class="theme-toggle" onclick="toggleTheme()">
+            <svg id="sun-icon" class="hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+            <svg id="moon-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        </button>
+
+        <!-- Navegación -->
+        <div class="tabs">
+            <div id="btn-tab-metronome" class="tab-btn active" onclick="switchTab('metronome')">METRÓNOMO</div>
+            <div id="btn-tab-songs" class="tab-btn" onclick="switchTab('songs')">MIS CANCIONES</div>
+        </div>
+
+        <!-- SECCIÓN METRÓNOMO -->
+        <div id="tab-metronome" class="tab-content active">
+            <div id="dial" class="dial-outer">
+                <div id="dial-knob" class="dial-knob"></div>
+                <div id="btn-toggle" class="center-button">
+                    <div id="bpm-text" class="bpm-display">120</div>
+                    <div class="label-xs" style="margin: 0; color: var(--label-color);">BPM</div>
+                    <div id="toggle-label" style="font-size: 0.6rem; font-weight: bold; margin-top: 5px; color: var(--label-color);">PLAY</div>
+                </div>
+            </div>
+
+            <div id="visual-beats" class="visual-beat-container"></div>
+
+            <div class="label-xs">Secuencia Actual</div>
+            <div id="sequence-list" class="sequence-list"></div>
+
+            <div class="input-group">
+                <div>
+                    <div class="label-xs">Compás</div>
+                    <select id="select-beats">
+                        <option value="2-4">2/4</option>
+                        <option value="3-4">3/4</option>
+                        <option value="4-4" selected>4/4</option>
+                        <option value="6-8">6/8</option>
+                        <option value="9-8">9/8</option>
+                        <option value="12-8">12/8</option>
+                    </select>
+                </div>
+                <div>
+                    <div class="label-xs">Reps</div>
+                    <input type="number" id="input-measures" value="4" min="1">
+                </div>
+                <button id="btn-add" class="bg-blue-600 text-white px-3 rounded-xl self-end" style="height: 42px;">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+            </div>
+            
+            <div class="flex justify-between items-center mt-4 pt-4 border-t border-zinc-900">
+                <div id="status-text" class="label-xs" style="margin: 0;">Listo</div>
+                <button onclick="openSaveModal()" class="text-xs font-bold text-blue-500 hover:text-blue-400">GUARDAR CANCIÓN</button>
+            </div>
+        </div>
+
+        <div id="tab-songs" class="tab-content">
+            <div class="label-xs" style="margin-bottom: 1rem;">Biblioteca Guardada</div>
+            <div id="songs-list" class="songs-list">
+                <div class="text-zinc-700 text-xs py-10">Cargando biblioteca...</div>
+            </div>
+            <div class="text-[10px] text-zinc-600 italic">Tus canciones se sincronizan automáticamente.</div>
+        </div>
+
+        <div id="save-modal">
+            <div class="label-xs" style="color: var(--text-color); margin-bottom: 1rem; font-size: 0.8rem;">Nombre de la canción</div>
+            <input type="text" id="song-name-input" placeholder="Ej: Intro Rock" class="w-full mb-4 py-3">
+            <div class="flex gap-2 justify-end">
+                <button onclick="closeSaveModal()" class="btn-outline">Cancelar</button>
+                <button id="btn-confirm-save" class="btn-blue">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-metronome';
+
+        let user = null;
+        let bpm = 120;
+        let isPlaying = false;
+        let sequence = [
+            { beats: 4, label: "4/4", noteValue: 4, measures: 4 },
+            { beats: 6, label: "6/8", noteValue: 8, measures: 4 }
+        ];
+        let currentBlockIndex = 0;
+        let currentMeasureInBlock = 0;
+        let currentBeatInMeasure = 0;
+        let nextNoteTime = 0.0;
+        let timerID = null;
+        let audioCtx = null;
+
+        // --- Modo Claro/Oscuro ---
+        window.toggleTheme = () => {
+            const isLight = document.body.classList.toggle('light-mode');
+            document.getElementById('sun-icon').classList.toggle('hidden', !isLight);
+            document.getElementById('moon-icon').classList.toggle('hidden', isLight);
+            localStorage.setItem('theme', isLight ? 'light' : 'dark');
+        };
+
+        // Cargar tema guardado
+        if (localStorage.getItem('theme') === 'light') {
+            toggleTheme();
+        }
+
+        const initAuth = async () => {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+        };
+        initAuth();
+
+        onAuthStateChanged(auth, (u) => {
+            user = u;
+            if (user) loadSongs();
+        });
+
+        window.switchTab = (tab) => {
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            const activeTab = document.getElementById(`tab-${tab}`);
+            if (activeTab) activeTab.classList.add('active');
+            const activeBtn = document.getElementById(`btn-tab-${tab}`);
+            if (activeBtn) activeBtn.classList.add('active');
+        };
+
+        const dial = document.getElementById('dial');
+        const knob = document.getElementById('dial-knob');
+        const bpmText = document.getElementById('bpm-text');
+        let isDragging = false;
+        let lastAngle = 0;
+        let visualRotation = 0;
+        let bpmAccumulator = 0;
+
+        const getAngle = (x, y) => {
+            const rect = dial.getBoundingClientRect();
+            return Math.atan2(y - (rect.top + rect.height / 2), x - (rect.left + rect.width / 2)) * (180 / Math.PI);
+        };
+
+        const handleMove = (e) => {
+            if (!isDragging) return;
+            const pos = e.touches ? e.touches[0] : e;
+            const currentAngle = getAngle(pos.clientX, pos.clientY);
+            let delta = currentAngle - lastAngle;
+            if (delta > 180) delta -= 360;
+            if (delta < -180) delta += 360;
+
+            visualRotation += delta;
+            knob.style.transform = `rotate(${visualRotation}deg)`;
+            bpmAccumulator += delta;
+            const sensitivity = 2.5; 
+            if (Math.abs(bpmAccumulator) >= sensitivity) {
+                const change = Math.floor(bpmAccumulator / sensitivity);
+                bpm = Math.min(Math.max(bpm + change, 30), 280);
+                bpmText.innerText = bpm;
+                bpmAccumulator %= sensitivity;
+            }
+            lastAngle = currentAngle;
+        };
+
+        dial.addEventListener('mousedown', (e) => { if(!e.target.closest('#btn-toggle')) { isDragging = true; lastAngle = getAngle(e.clientX, e.clientY); e.preventDefault(); } });
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', () => isDragging = false);
+        dial.addEventListener('touchstart', (e) => { if(!e.target.closest('#btn-toggle')) { isDragging = true; lastAngle = getAngle(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); } }, {passive:false});
+        window.addEventListener('touchmove', handleMove, {passive:false});
+        window.addEventListener('touchend', () => isDragging = false);
+
+        const initAudio = () => { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); };
+        const scheduleNote = (beat, time) => {
+            const osc = audioCtx.createOscillator();
+            const env = audioCtx.createGain();
+            osc.frequency.value = beat === 0 ? 1200 : 700;
+            env.gain.setValueAtTime(0.7, time);
+            env.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
+            osc.connect(env);
+            env.connect(audioCtx.destination);
+            osc.start(time);
+            osc.stop(time + 0.1);
+            const delay = (time - audioCtx.currentTime) * 1000;
+            setTimeout(() => { if(isPlaying) updateVisuals(beat); }, delay > 0 ? delay : 0);
+        };
+
+        const updateVisuals = (beat) => {
+            const squares = document.querySelectorAll('.beat-square');
+            squares.forEach((sq, i) => sq.classList.toggle('active', i === beat));
+            const block = sequence[currentBlockIndex];
+            if (block) document.getElementById('status-text').innerHTML = `<span style="color:#3b82f6">${block.label}</span> • ${currentMeasureInBlock + 1}/${block.measures}`;
+        };
+
+        const scheduler = () => {
+            while (nextNoteTime < audioCtx.currentTime + 0.1) {
+                const block = sequence[currentBlockIndex];
+                if (!block) { stop(); return; }
+                scheduleNote(currentBeatInMeasure, nextNoteTime);
+                const secondsPerQuarter = 60.0 / bpm;
+                nextNoteTime += (block.noteValue === 8 ? secondsPerQuarter / 2 : secondsPerQuarter);
+                currentBeatInMeasure++;
+                if (currentBeatInMeasure >= block.beats) {
+                    currentBeatInMeasure = 0;
+                    currentMeasureInBlock++;
+                    if (currentMeasureInBlock >= block.measures) {
+                        currentMeasureInBlock = 0;
+                        currentBlockIndex = (currentBlockIndex + 1) % sequence.length;
+                        setTimeout(() => { if (isPlaying) { createDots(sequence[currentBlockIndex].beats); renderSequence(); } }, (nextNoteTime - audioCtx.currentTime) * 1000);
+                    }
+                }
+            }
+            timerID = setTimeout(scheduler, 25);
+        };
+
+        const play = () => {
+            if (sequence.length === 0) return;
+            initAudio();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            isPlaying = true; currentBlockIndex = 0; currentMeasureInBlock = 0; currentBeatInMeasure = 0;
+            nextNoteTime = audioCtx.currentTime + 0.05;
+            document.getElementById('btn-toggle').classList.add('playing');
+            document.getElementById('toggle-label').innerText = 'STOP';
+            document.getElementById('toggle-label').style.color = '#3b82f6';
+            createDots(sequence[0].beats);
+            renderSequence();
+            scheduler();
+        };
+
+        const stop = () => {
+            isPlaying = false; clearTimeout(timerID);
+            document.getElementById('btn-toggle').classList.remove('playing');
+            document.getElementById('toggle-label').innerText = 'PLAY';
+            document.getElementById('toggle-label').style.color = 'var(--label-color)';
+            document.querySelectorAll('.beat-square').forEach(s => s.classList.remove('active'));
+            renderSequence();
+        };
+
+        const createDots = (count) => {
+            const container = document.getElementById('visual-beats');
+            container.innerHTML = '';
+            for (let i = 0; i < count; i++) {
+                const sq = document.createElement('div');
+                sq.className = 'beat-square';
+                container.appendChild(sq);
+            }
+        };
+
+        const renderSequence = () => {
+            const list = document.getElementById('sequence-list');
+            list.innerHTML = '';
+            sequence.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = `item-card ${isPlaying && currentBlockIndex === index ? 'active' : ''}`;
+                div.innerHTML = `
+                    <span class="text-xs text-zinc-400"><b class="text-zinc-500 light:text-zinc-600">${item.measures}</b> reps de <b class="text-zinc-500 light:text-zinc-600">${item.label}</b></span>
+                    <button onclick="removeBlock(${index})" class="text-zinc-700 hover:text-red-500">✕</button>
+                `;
+                list.appendChild(div);
+            });
+            if(!sequence.length) list.innerHTML = '<div class="text-zinc-800 text-[10px] py-4">Añade compases a la secuencia</div>';
+        };
+
+        window.removeBlock = (i) => { sequence.splice(i, 1); renderSequence(); };
+        document.getElementById('btn-add').onclick = () => {
+            const select = document.getElementById('select-beats');
+            const [b, n] = select.value.split('-');
+            const m = parseInt(document.getElementById('input-measures').value);
+            if (m > 0) {
+                sequence.push({ beats: parseInt(b), label: select.options[select.selectedIndex].text, noteValue: parseInt(n), measures: m });
+                renderSequence();
+            }
+        };
+
+        document.getElementById('btn-toggle').onclick = () => isPlaying ? stop() : play();
+
+        const songsListEl = document.getElementById('songs-list');
+        window.openSaveModal = () => document.getElementById('save-modal').style.display = 'block';
+        window.closeSaveModal = () => document.getElementById('save-modal').style.display = 'none';
+
+        document.getElementById('btn-confirm-save').onclick = async () => {
+            const name = document.getElementById('song-name-input').value.trim();
+            if (!name || !user) return;
+            const songId = crypto.randomUUID();
+            const songDoc = doc(db, 'artifacts', appId, 'public', 'data', 'songs', songId);
+            try {
+                await setDoc(songDoc, { id: songId, name: name, bpm: bpm, sequence: sequence, userId: user.uid, createdAt: Date.now() });
+                document.getElementById('song-name-input').value = '';
+                closeSaveModal();
+            } catch (e) { console.error("Error saving:", e); }
+        };
+
+        const loadSongs = () => {
+            if (!user) return;
+            const songsRef = collection(db, 'artifacts', appId, 'public', 'data', 'songs');
+            onSnapshot(songsRef, (snapshot) => {
+                songsListEl.innerHTML = '';
+                const docs = snapshot.docs.map(d => d.data());
+                if (docs.length === 0) {
+                    songsListEl.innerHTML = '<div class="text-zinc-800 text-xs py-10">No tienes canciones guardadas.</div>';
+                    return;
+                }
+                docs.forEach(song => {
+                    const div = document.createElement('div');
+                    div.className = 'item-card';
+                    div.innerHTML = `
+                        <div class="text-left">
+                            <div class="text-sm font-bold text-zinc-100 light:text-zinc-900">${song.name}</div>
+                            <div class="text-[10px] text-zinc-500">${song.bpm} BPM • ${song.sequence.length} bloques</div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="loadSong('${song.id}')" class="text-[10px] font-bold text-blue-500 bg-blue-900/20 px-3 py-1 rounded-md">CARGAR</button>
+                            <button onclick="deleteSong('${song.id}')" class="text-zinc-700 hover:text-red-500">✕</button>
+                        </div>
+                    `;
+                    songsListEl.appendChild(div);
+                });
+            });
+        };
+
+        window.loadSong = async (id) => {
+            const songDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'songs', id);
+            try {
+                const docSnap = await getDoc(songDocRef);
+                if (docSnap.exists()) {
+                    const song = docSnap.data();
+                    stop();
+                    bpm = song.bpm;
+                    bpmText.innerText = bpm;
+                    sequence = JSON.parse(JSON.stringify(song.sequence));
+                    renderSequence();
+                    switchTab('metronome');
+                }
+            } catch (e) { console.error(e); }
+        };
+
+        window.deleteSong = async (id) => { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'songs', id)); };
+        renderSequence();
+    </script>
+</body>
+</html>
